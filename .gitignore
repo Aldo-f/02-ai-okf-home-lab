@@ -11,3 +11,5 @@ __pycache__/
 .mem0_index_hash
 .env
 .env.example
+logs/chat/*.jsonl
+logs/chat/llm_failures.jsonl
