@@ -48,6 +48,8 @@ REPO_DEST_MAP = {
 }
 
 
+import re
+
 # Documentation patterns to watch
 DOC_PATTERNS = [
     "docs/**/*.md",
@@ -64,6 +66,25 @@ EXCLUDE_PATTERNS = [
     "*legacy*",
     "*archive*",
 ]
+
+def is_fork_repo(repo_path):
+    try:
+        remotes = subprocess.run(
+            ["git", "-C", str(repo_path), "remote", "-v"],
+            capture_output=True, text=True, timeout=10
+        ).stdout
+        # Fork indicators: upstream remote, origin matching original repo
+        if "upstream" in remotes or ("fork" in remotes.lower()):
+            return True
+        # letspeppol: origin = letspeppol/letspeppol (original repo not Aldo-f)
+        if "letspeppol/letspeppol" in remotes:
+            return True
+        # freellmapi: upstream to tashfeenahmed/freellmapi
+        if "tashfeenahmed/freellmapi" in remotes:
+            return True
+        return False
+    except Exception:
+        return False
 
 class DocWatcher:
     def __init__(self):
@@ -213,10 +234,15 @@ class DocWatcher:
             return all_changes
             
         for item in APPS_DIR.iterdir():
-            if (item.is_dir() and item.name.startswith("06-apps-")
-                    and item.name not in self.SCAN_EXCLUDED):
-                changes = self.scan_repository(item)
-                all_changes.extend(changes)
+            if not (item.is_dir() and re.match(r"^\d{2}-", item.name)):
+                continue
+            if item.name in self.SCAN_EXCLUDED:
+                continue
+            if is_fork_repo(item):
+                print(f"  Skipping fork repo: {item.name}")
+                continue
+            changes = self.scan_repository(item)
+            all_changes.extend(changes)
         
         return all_changes
 
@@ -237,10 +263,8 @@ class DocWatcher:
             
             # Destination(s) from the explicit map; unknown repos are skipped
             # loudly rather than silently landing in a generic location.
-            dest_bases = REPO_DEST_MAP.get(repo_name)
-            if not dest_bases:
-                print(f"  WARNING: no destination mapping for {repo_name} - skipped")
-                continue
+            # Numeric repos: site mirror + bundle mirror (auto); skip forks already excluded
+            dest_bases = [f"{DOCS_SITE_DOCS}/{repo_name}", f"{OKF_BUNDLE}/docs/{repo_name}"]
             
             import shutil
             for dest_base in dest_bases:
