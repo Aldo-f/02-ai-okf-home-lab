@@ -301,10 +301,21 @@ class OKFRAGPipeline:
         else:
             snippet = content.strip()
 
+        # Off-topic guard: don't fabricate from irrelevant sources
+        max_relevance = max((r.get("relevance_score", r.get("relevance", 0)) for r in sources), default=1.0)
+        if max_relevance < 0.32:
+            return {
+                "answer": "No relevant documentation found for that question.",
+                "sources": sources,
+                "confidence": float(best_result.get("relevance_score", 0.0)),
+                "query": question,
+            }
+
+        from rag.llm_answer import _generate_answer
         return {
-            "answer": f"Based on the documentation:\n\n{snippet}",
+            "answer": _generate_answer(snippet, question),
             "sources": sources,
-            "confidence": best_result["relevance_score"],
+            "confidence": float(max_relevance),
             "query": question,
         }
 
