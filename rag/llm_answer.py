@@ -7,7 +7,7 @@ def _generate_answer(sources_text: str, question: str, api_key: str = None) -> s
     if not key:
         return f"Based on the documentation:\n\n{sources_text}"
     payload = json.dumps({
-        "model": "freellm/auto",
+        "model": "auto",
         "messages": [{"role":"system","content":"Answer briefly using only the provided docs."},{"role":"user","content":f"Question: {question}\nSources:\n{sources_text}"}],
         "temperature": 0.3,
         "max_tokens": 400,
