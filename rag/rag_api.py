@@ -53,9 +53,15 @@ class QueryPayload(BaseModel):
 @app.post("/search")
 async def search(payload: QueryPayload, api_key: str = Security(get_api_key)):
     try:
-        return pipeline.query_with_answer(payload.question, k=payload.k)
+        result = pipeline.query_with_answer(payload.question, k=payload.k)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    try:
+        from rag.chat_logger import log_chat
+        log_chat(api_key, payload.question, result.get("answer",""), result.get("sources",[]), float(result.get("confidence", 0.0)), bool(result.get("llm_used", False)))
+    except Exception:
+        pass
+    return result
 
 
 @app.get("/health")
