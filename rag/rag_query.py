@@ -64,15 +64,22 @@ class OKFRAGPipeline:
         """Load all markdown documents from the bundle"""
         import yaml  # Import here to avoid issues if not installed
         
-        # Find all .md files, but only in OKF concept folders. The bundle
-        # root also holds a mirrored site tree (docs/, specs/, ...) synced
-        # by the watcher — indexing that would pollute search results.
+        # Scan projects/, docs/, specs/ for concept folders (01-, 05-, 06-)
         CONCEPT_PREFIXES = ('01-', '05-', '06-')
-        md_files = [
-            f for f in self.bundle_path.rglob("*.md")
-            if f.relative_to(self.bundle_path).parts[0].startswith(CONCEPT_PREFIXES)
-            or f.relative_to(self.bundle_path) in (Path('index.md'), Path('log.md'))
-        ]
+        md_files_set = set()
+        for subdir in ("projects", "docs", "specs"):
+            dir_path = self.bundle_path / subdir
+            if dir_path.is_dir():
+                for f in dir_path.rglob("*.md"):
+                    try:
+                        rel = f.relative_to(dir_path)
+                        if rel.parts and rel.parts[0].startswith(CONCEPT_PREFIXES):
+                            md_files_set.add(f)
+                    except ValueError:
+                        pass
+        md_files_set.update(self.bundle_path.glob("index.md"))
+        md_files_set.update(self.bundle_path.glob("log.md"))
+        md_files = sorted(md_files_set)
         
         for md_file in md_files:
             try:

@@ -7,7 +7,18 @@ Run: uvicorn rag_api:app --host 0.0.0.0 --port 8000
 """
 import sys
 import os
+import secrets
 from pathlib import Path
+
+# Auto-generate RAG_API_KEY if .env is missing (writes to .env, never logs the key)
+if not os.getenv("RAG_API_KEY"):
+    _new_key = "aido_rag_" + secrets.token_hex(16)
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
+    _env_text = _env_path.read_text() if _env_path.exists() else ""
+    if "RAG_API_KEY" not in _env_text:
+        with open(_env_path, "a") as f:
+            f.write(f"\nRAG_API_KEY={_new_key}\n")
+    os.environ["RAG_API_KEY"] = _new_key
 
 from fastapi import FastAPI, HTTPException, Security
 from fastapi.security.api_key import APIKeyHeader
@@ -22,7 +33,7 @@ app = FastAPI(title="OKF RAG API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://aldo-f.github.io"],
+    allow_origins=["https://aldo-f.github.io", "http://localhost:8080", "http://127.0.0.1:8080"],
     allow_methods=["POST"],
     allow_headers=["Content-Type", "X-API-Key"],
 )
