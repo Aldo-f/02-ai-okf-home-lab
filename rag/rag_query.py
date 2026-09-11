@@ -252,6 +252,29 @@ class OKFRAGPipeline:
         Returns:
             Dictionary with answer and sources
         """
+        # Gatekeeper: classify query before RAG retrieval
+        from rag.query_classifier import QueryClassifier
+        classifier = QueryClassifier()
+        classification = classifier.classify(question)
+
+        if classification.type == "greeting":
+            return {
+                "answer": classification.response,
+                "sources": [],
+                "confidence": 1.0,
+                "query": question,
+                "classified_as": "greeting",
+            }
+
+        if classification.type == "off_topic":
+            return {
+                "answer": classification.response,
+                "sources": [],
+                "confidence": 0.0,
+                "query": question,
+                "classified_as": "off_topic",
+            }
+
         # Get relevant documents
         results = self.query(question, k)
 
