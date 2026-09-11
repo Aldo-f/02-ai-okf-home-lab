@@ -4,7 +4,7 @@ import os, json, sys, urllib.request
 from pathlib import Path
 
 RAG_URL = os.environ.get("RAG_URL", "https://rag.aldof.duckdns.org/search")
-ENV_PATH = Path("/home/aldo/dev/okf-home-lab/.env")
+ENV_PATH = Path("/home/aldo/dev/02-ai-okf-home-lab/.env")
 
 def _load_key() -> str:
     if not ENV_PATH.exists():

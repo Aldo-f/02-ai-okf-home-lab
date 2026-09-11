@@ -9,3 +9,5 @@ _site/
 __pycache__/
 .omo/
 .mem0_index_hash
+.env
+.env.example
