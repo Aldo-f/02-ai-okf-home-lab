@@ -22,7 +22,7 @@ app = FastAPI(title="OKF RAG API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://aldo-f.github.io"],
+    allow_origins=["https://aldo-f.github.io", "http://192.168.0.5:8001"],
     allow_methods=["POST"],
     allow_headers=["Content-Type", "X-API-Key"],
 )
