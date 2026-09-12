@@ -65,22 +65,80 @@ class OKFRAGPipeline:
 
     def _load_documents(self):
         """Load all markdown documents from the bundle"""
+        import hashlib
         import yaml  # Import here to avoid issues if not installed
 
-        # Scan projects/, docs/, specs/ for concept folders (01-, 05-, 06-)
-        # Concept docs live under these subdirectories, not at the bundle root.
         CONCEPT_PREFIXES = ("01-", "05-", "06-")
         md_files_set = set()
+        seen_hashes = set()
+
         for subdir in ("projects", "docs", "specs"):
             dir_path = self.bundle_path / subdir
             if dir_path.is_dir():
                 for f in dir_path.rglob("*.md"):
                     try:
+                        # Skip deeply nested recursive-copy artifacts
+                        # (e.g. docs/aldo-f-github-io/aldo-f-github-io/...)
                         rel = f.relative_to(dir_path)
-                        if rel.parts and rel.parts[0].startswith(CONCEPT_PREFIXES):
+                        parts = rel.parts
+                        if any(
+                            p == "aldo-f-github-io"
+                            and i > 0
+                            and parts[i - 1] == "aldo-f-github-io"
+                            for i, p in enumerate(parts)
+                        ):
+                            continue
+                        # In docs/, accept concept-prefix folders AND top-level
+                        # project folders like thuis-v4, urbanfix, etc.
+                        if subdir == "docs":
+                            include = (
+                                len(parts) >= 2
+                                and (
+                                    parts[0].startswith(CONCEPT_PREFIXES)
+                                    or parts[1].startswith(CONCEPT_PREFIXES)
+                                )
+                            )
+                            # Also allow known top-level project doc dirs
+                            if not include:
+                                known = {"thuis-v4", "thuis-v5", "thuis", "thuis-v3"}
+                                if any(p in known for p in parts[:3]):
+                                    include = True
+                            if not include:
+                                continue
+                        else:
+                            if not (parts and parts[0].startswith(CONCEPT_PREFIXES)):
+                                continue
+                        # Dedup by content hash within the bundle
+                        content_bytes = f.read_bytes()
+                        h = hashlib.sha256(content_bytes).hexdigest()
+                        if h not in seen_hashes:
+                            seen_hashes.add(h)
                             md_files_set.add(f)
                     except ValueError:
                         pass
+
+        # Scan the separate aldo-f-github-io repo for additional docs not
+        # already mirrored in the OKF bundle (avoids the recursive-copy loop).
+        self._gh_bundle = Path("/home/aldo/dev/06-apps-aldo-f-github-io")
+        for subdir in ("docs", "projects", "specs"):
+            dir_path = self._gh_bundle / subdir
+            if not dir_path.is_dir():
+                continue
+            for f in dir_path.rglob("*.md"):
+                try:
+                    rel = f.relative_to(dir_path)
+                    # Skip hidden/build/cache dirs
+                    if any(p.startswith(".") or p in ("node_modules", "site", "site-nl") for p in rel.parts):
+                        continue
+                    content_bytes = f.read_bytes()
+                    h = hashlib.sha256(content_bytes).hexdigest()
+                    if h not in seen_hashes:
+                        seen_hashes.add(h)
+                        # Tag with source so the path metadata stays sane
+                        md_files_set.add(f)
+                except ValueError:
+                    pass
+
         md_files_set.update(self.bundle_path.glob("index.md"))
         md_files_set.update(self.bundle_path.glob("log.md"))
         md_files = sorted(md_files_set)
@@ -97,13 +155,24 @@ class OKFRAGPipeline:
                 body = re.sub(r"\s+", " ", body).strip()
 
                 if body:  # Only add if there's content
-                    # Create metadata
+                    # Derive a clean relative path for metadata
+                    try:
+                        if str(md_file).startswith(str(self._gh_bundle)):
+                            rel = md_file.relative_to(self._gh_bundle)
+                            source_label = "gh"
+                        else:
+                            rel = md_file.relative_to(self.bundle_path)
+                            source_label = "okf"
+                    except ValueError:
+                        rel = Path(md_file.name)
+                        source_label = "unknown"
                     metadata = {
-                        "path": str(md_file.relative_to(self.bundle_path)),
+                        "path": str(rel),
                         "title": frontmatter.get("title", "Untitled"),
                         "type": frontmatter.get("type", "Unknown"),
                         "tags": frontmatter.get("tags", []),
                         "sources": frontmatter.get("sources", []),
+                        "source_repo": source_label,
                     }
 
                     self.documents.append((body, metadata))
